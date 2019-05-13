@@ -1,0 +1,7 @@
+*.pth
+
+*.png
+
+datasets/*
+
+__pycache__/*
