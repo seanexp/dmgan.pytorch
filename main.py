@@ -116,7 +116,7 @@ for i_epoch in range(1, args.n_epoch+1):
         batch_size = real.size(0)
         real = real.to(device)
 
-        for _ in range(5):
+        for _ in range(3):
             # train with real
             netD.zero_grad()
 
@@ -125,7 +125,7 @@ for i_epoch in range(1, args.n_epoch+1):
 
             # train with fake
             noise = torch.randn(batch_size, nz, device=device)
-            g_idx = torch.randint(n_gen, size=(batch_size,)).to(device)
+            g_idx = torch.multinomial(torch.ones(n_gen), replacement=True)
             fake = netG(noise, g_idx)
 
             output = netD(fake.detach())
