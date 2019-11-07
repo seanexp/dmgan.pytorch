@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from torch.nn.utils import spectral_norm as sn
 
+import pdb
+
 
 class Lambda(nn.Module):
     def __init__(self, func):
@@ -17,22 +19,20 @@ class Generator(nn.Module):
     def __init__(self, nz, n_gen):
         super(Generator, self).__init__()
 
+        n_div = 4
+
         self.gens = nn.ModuleList([
                         nn.Sequential(
-                            nn.Linear(nz, 512),
-                            nn.BatchNorm1d(512),
+                            nn.Linear(nz, 1024 // n_div),
                             nn.LeakyReLU(0.2),
-                            nn.Linear(512, 32 * 7 * 7),
-                            nn.BatchNorm1d(32 * 7 * 7),
+                            nn.Linear(1024 // n_div, 128 // n_div * 7 * 7),
                             nn.LeakyReLU(0.2),
-                            Lambda(lambda x: x.view(-1, 32, 7, 7)),  # B X 32 X 7 X 7
-                            nn.ConvTranspose2d(32, 32, 4, 2, 1),     # B X 32 X 14 X 14
-                            nn.BatchNorm2d(32),
+                            Lambda(lambda x: x.view(-1, 128 // n_div, 7, 7)),           # B X 32 X 7 X 7
+                            nn.ConvTranspose2d(128 // n_div, 64 // n_div, 4, 2, 1),     # B X 32 X 14 X 14
                             nn.LeakyReLU(0.2),
-                            nn.ConvTranspose2d(32, 32, 4, 2, 1),     # B X 32 X 28 X 28
-                            nn.BatchNorm2d(32),
+                            nn.ConvTranspose2d(64 // n_div, 32 // n_div, 4, 2, 1),     # B X 32 X 28 X 28
                             nn.LeakyReLU(0.2),
-                            nn.ConvTranspose2d(32, 1, 3, 1, 1),      # B X 1 X 28 X 28
+                            nn.ConvTranspose2d(32 // n_div, 1, 3, 1, 1),               # B X 1 X 28 X 28
                             nn.Tanh(),
                             )
                         for i in range(n_gen)
@@ -41,20 +41,15 @@ class Generator(nn.Module):
         self.nz = nz
         self.n_gen = n_gen
 
-    def forward(self, z):
+    def forward(self, z, g_idx):
         batch_size = z.size(0)
 
-        assert batch_size % self.n_gen == 0, \
-                f"batch size should be multiple of n_gen, currently batch size: {batch_size}, n_gen: {n_gen}"
+        images = torch.stack([self.gens[i](z) for i in range(self.n_gen)], dim=1)
+        images = images[torch.arange(batch_size), g_idx]
 
-        self.data_per_gen = batch_size // self.n_gen
+        return images
 
-        outputs = [gen(z) for z, gen in zip(z.chunk(self.n_gen), self.gens)]
-        return torch.cat(outputs)
 
-    def gen_id(self):
-        """returns corresponding generator id of generated sample"""
-        return torch.arange(self.n_gen).view(1, -1).repeat(self.data_per_gen, 1).t().flatten()
 
 
 class Discriminator(nn.Module):

@@ -34,10 +34,8 @@ parser.add_argument('--manualSeed', type=int, help='manual seed')
 args = parser.parse_args()
 print(args)
 
-try:
-    os.makedirs(args.outf)
-except OSError:
-    pass
+os.makedirs(os.path.join(args.outf, 'images'), exist_ok=True)
+os.makedirs(os.path.join(args.outf, 'models'), exist_ok=True)
 
 if args.manualSeed is None:
     args.manualSeed = random.randint(1, 10000)
@@ -62,7 +60,7 @@ else:
 
 assert dataset
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=args.batch_size,
-                                         shuffle=True, num_workers=int(args.workers))
+                                         shuffle=True, num_workers=int(args.workers), pin_memory=args.cuda)
 
 device = torch.device("cuda:0" if args.cuda else "cpu")
 
@@ -75,7 +73,6 @@ if args.netG != '':
     netG.load_state_dict(torch.load(args.netG))
 print(netG)
 
-
 netD = Discriminator().to(device)
 if args.netD != '':
     netD.load_state_dict(torch.load(args.netD))
@@ -86,7 +83,10 @@ if args.netQ != '':
     netQ.load_state_dict(torch.load(args.netQ))
 print(netQ)
 
+data_per_gen = args.batch_size // n_gen
 fixed_noise = torch.randn(args.batch_size, nz, device=device)
+fixed_noise = torch.randn(n_gen, nz, device=device).repeat(data_per_gen, 1)
+fixed_gidx = torch.arange(n_gen).repeat(data_per_gen)
 
 # setup optimizer
 optimizerD = optim.Adam(netD.parameters(), lr=args.lr, betas=(args.beta1, 0.999))
@@ -95,27 +95,30 @@ optimizerG = optim.Adam([
                         {'params': netQ.parameters()}
                         ], lr=args.lr, betas=(args.beta1, 0.999))
 
+from datetime import datetime
+timestamp = datetime.now().strftime('%b%d_$H-%M-%S')
+
 for i_epoch in range(1, args.n_epoch+1):
-    for i, data in enumerate(dataloader, 0):
+    for i, (real, _) in enumerate(dataloader, 0):
         ############################
-        # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
+        # (1) Update D network: maximize E_{x ~ p_x} [D(x)] - E_{z ~ p_z} [D(G(z))]
         ###########################
         # train with real
         netD.zero_grad()
-        real = data[0].to(device)
+        real = real.to(device)
         batch_size = real.size(0)
 
         output = netD(real)
-        errD_real = -output.mean()
-        D_x = (-errD_real).item()
+        real_score = output.mean()
 
         # train with fake
         noise = torch.randn(batch_size, nz, device=device)
-        fake = netG(noise)
+        g_idx = torch.randint(n_gen, size=(batch_size,)).to(device)
+        fake = netG(noise, g_idx)
+
         output = netD(fake.detach())
-        errD_fake = output.mean()
-        D_G_z1 = errD_fake.item()
-        errD = errD_real + errD_fake
+        fake_score = output.mean()
+        errD = - real_score + fake_score
         errD.backward()
         optimizerD.step()
 
@@ -124,30 +127,27 @@ for i_epoch in range(1, args.n_epoch+1):
         ###########################
         optimizerG.zero_grad()
         output = netD(fake)
-        errG_gen = - output.mean()
+        fake_score = output.mean()
 
-        targetQ = netG.gen_id().to(device)
-        errQ = F.cross_entropy(netQ(fake), targetQ)
+        errQ = F.cross_entropy(netQ(fake), g_idx)
 
-        errG = errG_gen + args.lambda_q * errQ
+        errG = - fake_score + args.lambda_q * errQ
         errG.backward()
-        D_G_z2 = (-errG).item()
         optimizerG.step()
 
-        print('[%d/%d][%d/%d] Loss_D: %.4f Loss_G: %.4f D(x): %.4f D(G(z)): %.4f / %.4f'
+        print('[%d/%d][%d/%d] Loss_D: %.4f Loss_G: %.4f D(x): %.4f D(G(z)): %.4f'
               % (i_epoch, args.n_epoch, i, len(dataloader),
-                 errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
+                 errD.item(), errG.item(), real_score, fake_score))
 
     if i_epoch % 5 == 0:
-        data_per_gen = args.batch_size // n_gen
         vutils.save_image(real,
-                '%s/real_samples.png' % args.outf, nrow=data_per_gen,
+                f'{args.outf}/images/real_samples.png', nrow=n_gen,
                 normalize=True)
-        fake = netG(fixed_noise)
+        fake = netG(fixed_noise, fixed_gidx)
         vutils.save_image(fake.detach(),
-                '%s/fake_samples_epoch_%03d.png' % (args.outf, i_epoch), nrow=data_per_gen,
+                f'{args.outf}/images/fake_samples_epoch_{i_epoch}.png', nrow=n_gen,
                 normalize=True)
 
         # do checkpointing
-        torch.save(netG.state_dict(), '%s/netG_epoch_%d.pth' % (args.outf, i_epoch))
-        torch.save(netD.state_dict(), '%s/netD_epoch_%d.pth' % (args.outf, i_epoch))
+        torch.save(netG.state_dict(), f'{args.outf}/models/netG_{timestamp}_epoch_{i_epoch}_{args.dataset}.pth')
+        torch.save(netD.state_dict(), f'{args.outf}/models/netD_{timestamp}_epoch_{i_epoch}_{args.dataset}.pth')
