@@ -51,9 +51,9 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self):
+    def __init__(self, n_gen):
         super(Discriminator, self).__init__()
-        self.main = nn.Sequential(
+        self.latent = nn.Sequential(
                 sn(nn.Conv2d(1, 64, 4, 2, 1)),                  # B X 64 X 14 X 14
                 nn.BatchNorm2d(64),
                 nn.LeakyReLU(0.2),
@@ -61,37 +61,24 @@ class Discriminator(nn.Module):
                 nn.BatchNorm2d(128),
                 nn.LeakyReLU(0.2),
                 Lambda(lambda x: x.view(-1, 128 * 7 * 7)),
+                )
+
+        self.score = nn.Sequential(
                 sn(nn.Linear(128 * 7 * 7, 1024)),
                 nn.BatchNorm1d(1024),
                 nn.LeakyReLU(0.2),
                 sn(nn.Linear(1024, 1)),
-        )
+                )
+
+        self.posterior = nn.Sequential(
+                nn.Linear(128 * 7 * 7, 1024),
+                nn.BatchNorm1d(1024),
+                nn.LeakyReLU(0.2),
+                nn.Linear(1024, n_gen),
+                )
 
     def forward(self, input):
-        output = self.main(input)
-        return output.view(-1, 1).squeeze(1)
-
-
-class Encoder(nn.Module):
-    """Calculates pre-softmax posterior q(c | x)"""
-
-    def __init__(self, n_gen):
-        super(Encoder, self).__init__()
-        self.main = nn.Sequential(
-                nn.Conv2d(1, 32, 4, 2, 1),                  # B X 32 X 14 X 14
-                nn.BatchNorm2d(32),
-                nn.LeakyReLU(0.2),
-                nn.Conv2d(32, 64, 4, 2, 1),                 # B X 64 X 7 X 7
-                nn.BatchNorm2d(64),
-                nn.LeakyReLU(0.2),
-                Lambda(lambda x: x.view(-1, 64 * 7 * 7)),
-                nn.Linear(64 * 7 * 7, 512),
-                nn.BatchNorm1d(512),
-                nn.LeakyReLU(0.2),
-                nn.Linear(512, n_gen),
-        )
-
-        self.n_gen = n_gen
-
-    def forward(self, x):
-        return self.main(x)
+        x = self.latent(input)
+        score = self.score(x)
+        posterior = self.posterior(x)
+        return score, posterior

@@ -11,7 +11,7 @@ import torchvision.datasets as dset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 
-from models import Generator, Discriminator, Encoder
+from models import Generator, Discriminator
 
 
 parser = argparse.ArgumentParser()
@@ -26,7 +26,6 @@ parser.add_argument('--beta1', type=float, default=0.5, help='beta1 for adam. de
 parser.add_argument('--cuda', action='store_true', help='enables cuda')
 parser.add_argument('--netG', default='', help="path to netG (to continue training)")
 parser.add_argument('--netD', default='', help="path to netD (to continue training)")
-parser.add_argument('--netQ', default='', help="path to netQ (to continue training)")
 parser.add_argument('--lambda', dest='lambda_q', type=float, default=1., help='coefficient for variational mutual information')
 parser.add_argument('--outf', default='.', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
@@ -84,15 +83,10 @@ if args.netG != '':
     netG.load_state_dict(torch.load(args.netG))
 print(netG)
 
-netD = Discriminator().to(device)
+netD = Discriminator(n_gen).to(device)
 if args.netD != '':
     netD.load_state_dict(torch.load(args.netD))
 print(netD)
-
-netQ = Encoder(n_gen).to(device)
-if args.netQ != '':
-    netQ.load_state_dict(torch.load(args.netQ))
-print(netQ)
 
 data_per_gen = args.batch_size // n_gen
 fixed_noise = torch.randn(n_gen, nz, device=device).repeat(1, data_per_gen).view(-1, nz)
@@ -102,7 +96,8 @@ fixed_gidx = torch.arange(n_gen).repeat(data_per_gen)
 optimizerD = optim.Adam(netD.parameters(), lr=args.lr, betas=(args.beta1, 0.999))
 optimizerG = optim.Adam([
                         {'params': netG.parameters()},
-                        {'params': netQ.parameters()}
+                        {'params': netD.latent.parameters()},
+                        {'params': netD.posterior.parameters()},
                         ], lr=args.lr, betas=(args.beta1, 0.999))
 
 from datetime import datetime
@@ -120,28 +115,28 @@ for i_epoch in range(1, args.n_epoch+1):
             # train with real
             netD.zero_grad()
 
-            output = netD(real)
+            output, _ = netD(real)
             real_score = output.mean()
 
             # train with fake
             noise = torch.randn(batch_size, nz, device=device)
-            g_idx = torch.multinomial(torch.ones(n_gen), replacement=True)
+            g_idx = torch.multinomial(torch.ones(n_gen), batch_size, replacement=True)
             fake = netG(noise, g_idx)
 
-            output = netD(fake.detach())
+            output, _ = netD(fake.detach())
             fake_score = output.mean()
             errD = - real_score + fake_score
             errD.backward()
             optimizerD.step()
 
         ############################
-        # (2) Update G network: maximize log(D(G(z)))
+        # (2) Update G network: maximize E_{z ~ p_z} [D(G(z))]
         ###########################
         optimizerG.zero_grad()
-        output = netD(fake)
+        output, posterior = netD(fake)
         fake_score = output.mean()
 
-        errQ = F.cross_entropy(netQ(fake), g_idx)
+        errQ = F.cross_entropy(posterior, g_idx.to(device))
 
         errG = - fake_score + args.lambda_q * errQ
         errG.backward()
