@@ -95,8 +95,7 @@ if args.netQ != '':
 print(netQ)
 
 data_per_gen = args.batch_size // n_gen
-fixed_noise = torch.randn(args.batch_size, nz, device=device)
-fixed_noise = torch.randn(n_gen, nz, device=device).repeat(data_per_gen, 1)
+fixed_noise = torch.randn(n_gen, nz, device=device).repeat(1, data_per_gen).view(-1, nz)
 fixed_gidx = torch.arange(n_gen).repeat(data_per_gen)
 
 # setup optimizer
