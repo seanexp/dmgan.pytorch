@@ -15,7 +15,7 @@ from models import Generator, Discriminator, Encoder
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', choices=['mnist',], help='which data to use')
+parser.add_argument('--dataset', choices=['mnist', 'chairs'], help='which data to use')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=1)
 parser.add_argument('--batch_size', type=int, default=100, help='input batch size')
 parser.add_argument('--nz', type=int, default=8, help='size of the latent z vector')
@@ -49,12 +49,23 @@ if torch.cuda.is_available() and not args.cuda:
     print("WARNING: You have a CUDA device, so you should probably run with --cuda")
 
 if args.dataset == 'mnist':
-        dataset = dset.MNIST(root='datasets/mnist', download=True,
-                           transform=transforms.Compose([
-                               transforms.ToTensor(),
-                               transforms.Normalize((0.5,), (0.5,)),
-                           ]))
-        nc=1
+    dataset = dset.MNIST(root='datasets/mnist', download=True,
+                       transform=transforms.Compose([
+                           transforms.ToTensor(),
+                           transforms.Normalize((0.5,), (0.5,)),
+                       ]))
+elif args.dataset == 'chairs':
+
+    container = np.load('/home/sjjung/data/chairs/chairs_half_64.npz')
+    img_data = container['img']
+    label_data = container['label']
+
+    transform = T.ToTensor()
+
+    img_tensor = torch.stack([transform(i) for i in img_data])
+    label_tensor = torch.Tensor(label_data)
+
+    dataset = torch.utils.data.TensorDataset(img_tensor, label_tensor)
 else:
     raise NotImplementedError
 
@@ -103,24 +114,26 @@ for i_epoch in range(1, args.n_epoch+1):
         ############################
         # (1) Update D network: maximize E_{x ~ p_x} [D(x)] - E_{z ~ p_z} [D(G(z))]
         ###########################
-        # train with real
-        netD.zero_grad()
-        real = real.to(device)
         batch_size = real.size(0)
+        real = real.to(device)
 
-        output = netD(real)
-        real_score = output.mean()
+        for _ in range(5):
+            # train with real
+            netD.zero_grad()
 
-        # train with fake
-        noise = torch.randn(batch_size, nz, device=device)
-        g_idx = torch.randint(n_gen, size=(batch_size,)).to(device)
-        fake = netG(noise, g_idx)
+            output = netD(real)
+            real_score = output.mean()
 
-        output = netD(fake.detach())
-        fake_score = output.mean()
-        errD = - real_score + fake_score
-        errD.backward()
-        optimizerD.step()
+            # train with fake
+            noise = torch.randn(batch_size, nz, device=device)
+            g_idx = torch.randint(n_gen, size=(batch_size,)).to(device)
+            fake = netG(noise, g_idx)
+
+            output = netD(fake.detach())
+            fake_score = output.mean()
+            errD = - real_score + fake_score
+            errD.backward()
+            optimizerD.step()
 
         ############################
         # (2) Update G network: maximize log(D(G(z)))
