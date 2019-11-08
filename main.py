@@ -31,7 +31,7 @@ parser.add_argument('--cuda', action='store_true', help='enables cuda')
 # parser.add_argument('--netG', default='', help="path to netG (to continue training)")
 # parser.add_argument('--netD', default='', help="path to netD (to continue training)")
 parser.add_argument('--load_from', default='', help='pth file name of netG and netD (to continue training)')
-parser.add_argument('--dis_step', default=5, help='number of dis step per one gen step')
+parser.add_argument('--dis_step', type=int, default=5, help='number of dis step per one gen step')
 parser.add_argument('--lambda', dest='lambda_q', type=float, default=1., help='coefficient for variational mutual information')
 parser.add_argument('--outf', default='.', help='folder to output images and model checkpoints')
 parser.add_argument('--manualSeed', type=int, help='manual seed')
@@ -80,7 +80,7 @@ if args.dataset == 'mnist':
     n_epoch = 25 * args.dis_step
 
     netG = MNISTGenerator(nz, n_gen).to(device)
-    netD = MNISTDiscriminaotr(n_gen).to(device)
+    netD = MNISTDiscriminator(n_gen).to(device)
 
 elif args.dataset == 'chairs':
 
@@ -97,7 +97,7 @@ elif args.dataset == 'chairs':
 
     nz = 10
     n_gen = 20
-    n_epoch = 200 * args.dis_step
+    n_epoch = 1000 * args.dis_step
 
     netG = ChairsGenerator(nz, n_gen).to(device)
     netD = ChairsDiscriminator(n_gen).to(device)
@@ -119,7 +119,7 @@ fixed_noise = torch.randn(n_gen, nz, device=device).repeat(1, data_per_gen).view
 fixed_gidx = torch.arange(n_gen).repeat(data_per_gen)
 
 log_dir = os.path.join(
-    'runs', timestamp + '_'  + args.dataset)
+    'runs', f"{timestamp}_{args.dataset}_lambda={args.lambda_q}")
 
 writer = SummaryWriter(log_dir)
 
@@ -184,7 +184,7 @@ for i_epoch in range(1, n_epoch+1):
                 f'{args.outf}/{args.dataset}/{timestamp}/images/fake_samples_epoch_{i_epoch}.png', nrow=n_gen,
                 normalize=True)
 
-    if i_epoch % args.save_every == 0:
+    if i_epoch % args.save_every == 0 or i_epoch == n_epoch:
         # do checkpointing
         torch.save(netG.state_dict(), f'{args.outf}/{args.dataset}/models/netG_{timestamp}_epoch_{i_epoch}.pth')
         torch.save(netD.state_dict(), f'{args.outf}/{args.dataset}/models/netD_{timestamp}_epoch_{i_epoch}.pth')
