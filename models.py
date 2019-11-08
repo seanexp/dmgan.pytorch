@@ -17,28 +17,6 @@ class Generator(nn.Module):
     def __init__(self, nz, n_gen):
         super(Generator, self).__init__()
 
-        n_div = 4
-
-        self.gens = nn.ModuleList([
-                        nn.Sequential(
-                            nn.Linear(nz, 1024 // n_div),
-                            nn.LeakyReLU(0.2),
-                            nn.Linear(1024 // n_div, 128 // n_div * 7 * 7),
-                            nn.LeakyReLU(0.2),
-                            Lambda(lambda x: x.view(-1, 128 // n_div, 7, 7)),           # B X 32 X 7 X 7
-                            nn.ConvTranspose2d(128 // n_div, 64 // n_div, 4, 2, 1),     # B X 32 X 14 X 14
-                            nn.LeakyReLU(0.2),
-                            nn.ConvTranspose2d(64 // n_div, 32 // n_div, 4, 2, 1),     # B X 32 X 28 X 28
-                            nn.LeakyReLU(0.2),
-                            nn.ConvTranspose2d(32 // n_div, 1, 3, 1, 1),               # B X 1 X 28 X 28
-                            nn.Tanh(),
-                            )
-                        for i in range(n_gen)
-                    ])
-
-        self.nz = nz
-        self.n_gen = n_gen
-
     def forward(self, z, g_idx):
         batch_size = z.size(0)
 
@@ -48,11 +26,47 @@ class Generator(nn.Module):
         return images
 
 
-
-
 class Discriminator(nn.Module):
     def __init__(self, n_gen):
         super(Discriminator, self).__init__()
+
+    def forward(self, input):
+        x = self.latent(input)
+        score = self.score(x)
+        posterior = self.posterior(x)
+        return score, posterior
+
+
+class MNISTGenerator(Generator):
+    def __init__(self, nz, n_gen):
+        super(MNISTGenerator, self).__init__(nz, n_gen)
+
+        n_div = 4
+        self.gens = nn.ModuleList([
+                        nn.Sequential(
+                            nn.Linear(nz, 1024 // n_div),
+                            nn.LeakyReLU(0.2),
+                            nn.Linear(1024 // n_div, 128 // n_div * 7 * 7),
+                            nn.LeakyReLU(0.2),
+                            Lambda(lambda x: x.view(-1, 128 // n_div, 7, 7)),           # B X 32 X 7 X 7
+                            nn.ConvTranspose2d(128 // n_div, 64 // n_div, 4, 2, 1),     # B X 16 X 14 X 14
+                            nn.LeakyReLU(0.2),
+                            nn.ConvTranspose2d(64 // n_div, 32 // n_div, 4, 2, 1),      # B X 8 X 28 X 28
+                            nn.LeakyReLU(0.2),
+                            nn.ConvTranspose2d(32 // n_div, 1, 3, 1, 1),                # B X 1 X 28 X 28
+                            nn.Tanh(),
+                            )
+                        for i in range(n_gen)
+                    ])
+
+        self.nz = nz
+        self.n_gen = n_gen
+
+
+class MNISTDiscriminator(Discriminator):
+    def __init__(self, n_gen):
+        super(MNISTDiscriminator, self).__init__(n_gen)
+
         self.latent = nn.Sequential(
                 sn(nn.Conv2d(1, 64, 4, 2, 1)),                  # B X 64 X 14 X 14
                 nn.BatchNorm2d(64),
@@ -77,8 +91,62 @@ class Discriminator(nn.Module):
                 nn.Linear(1024, n_gen),
                 )
 
-    def forward(self, input):
-        x = self.latent(input)
-        score = self.score(x)
-        posterior = self.posterior(x)
-        return score, posterior
+
+class ChairsGenerator(Generator):
+    def __init__(self, nz, n_gen):
+        super(ChairsGenerator, self).__init__(nz, n_gen)
+
+        n_div = 4
+        self.gens = nn.ModuleList([
+                        nn.Sequential(
+                            nn.Linear(nz, 256 // n_div),
+                            nn.LeakyReLU(0.2),
+                            nn.Linear(256 // n_div, 128 // n_div * 8 * 8),
+                            nn.LeakyReLU(0.2),
+                            Lambda(lambda x: x.view(-1, 128 // n_div, 8, 8)),           # B X 32 X 8 X 8
+                            nn.ConvTranspose2d(128 // n_div, 64 // n_div, 4, 2, 1),     # B X 16 X 16 X 16
+                            nn.LeakyReLU(0.2),
+                            nn.ConvTranspose2d(64 // n_div, 32 // n_div, 4, 2, 1),      # B X 8 X 32 X 32
+                            nn.LeakyReLU(0.2),
+                            nn.ConvTranspose2d(32 // n_div, 16 // n_div, 4, 2, 1),      # B X 4 X 64 X 64
+                            nn.LeakyReLU(0.2),
+                            nn.ConvTranspose2d(16 // n_div, 1, 3, 1, 1),                # B X 1 X 64 X 64
+                            nn.Tanh(),
+                            )
+                        for i in range(n_gen)
+                    ])
+
+        self.nz = nz
+        self.n_gen = n_gen
+
+
+class ChairsDiscriminator(Discriminator):
+    def __init__(self, n_gen):
+        super(ChairsDiscriminator, self).__init__(n_gen)
+
+        self.latent = nn.Sequential(
+                sn(nn.Conv2d(1, 64, 4, 2, 1)),                  # B X 64 X 32 X 32
+                nn.BatchNorm2d(64),
+                nn.LeakyReLU(0.2),
+                sn(nn.Conv2d(64, 128, 4, 2, 1)),                # B X 128 X 16 X 16
+                nn.BatchNorm2d(128),
+                nn.LeakyReLU(0.2),
+                sn(nn.Conv2d(128, 128, 4, 2, 1)),                # B X 128 X 8 X 8
+                nn.BatchNorm2d(128),
+                nn.LeakyReLU(0.2),
+                Lambda(lambda x: x.view(-1, 128 * 8 * 8)),
+                )
+
+        self.score = nn.Sequential(
+                sn(nn.Linear(128 * 8 * 8, 1024)),
+                nn.BatchNorm1d(1024),
+                nn.LeakyReLU(0.2),
+                sn(nn.Linear(1024, 1)),
+                )
+
+        self.posterior = nn.Sequential(
+                nn.Linear(128 * 8 * 8, 1024),
+                nn.BatchNorm1d(1024),
+                nn.LeakyReLU(0.2),
+                nn.Linear(1024, n_gen),
+                )
