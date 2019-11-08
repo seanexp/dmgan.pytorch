@@ -80,7 +80,7 @@ if args.dataset == 'mnist':
     n_epoch = 25 * args.dis_step
 
     netG = MNISTGenerator(nz, n_gen).to(device)
-    netD = MNISTDiscriminaotr(n_gen).to(device)
+    netD = MNISTDiscriminator(n_gen).to(device)
 
 elif args.dataset == 'chairs':
 
@@ -119,7 +119,7 @@ fixed_noise = torch.randn(n_gen, nz, device=device).repeat(1, data_per_gen).view
 fixed_gidx = torch.arange(n_gen).repeat(data_per_gen)
 
 log_dir = os.path.join(
-    'runs', timestamp + '_'  + args.dataset)
+    'runs', f"{timestamp}_{args.dataset}_lambda={args.lambda_q}")
 
 writer = SummaryWriter(log_dir)
 
@@ -184,7 +184,7 @@ for i_epoch in range(1, n_epoch+1):
                 f'{args.outf}/{args.dataset}/{timestamp}/images/fake_samples_epoch_{i_epoch}.png', nrow=n_gen,
                 normalize=True)
 
-    if i_epoch % args.save_every == 0:
+    if i_epoch % args.save_every == 0 or i_epoch == n_epoch:
         # do checkpointing
         torch.save(netG.state_dict(), f'{args.outf}/{args.dataset}/models/netG_{timestamp}_epoch_{i_epoch}.pth')
         torch.save(netD.state_dict(), f'{args.outf}/{args.dataset}/models/netD_{timestamp}_epoch_{i_epoch}.pth')
