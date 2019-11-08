@@ -88,7 +88,10 @@ elif args.dataset == 'chairs':
     img_data = container['img']
     label_data = container['label']
 
-    transform = T.ToTensor()
+    transform = T.Compose([
+                        T.ToTensor(),
+                        T.Normalize((0.5,), (0.5,)),
+                        ])
 
     img_tensor = torch.stack([transform(i) for i in img_data])
     label_tensor = torch.Tensor(label_data)
