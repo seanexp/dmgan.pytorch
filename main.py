@@ -182,7 +182,10 @@ for i_epoch in range(1, n_epoch+1):
         vutils.save_image(real,
                 f'{args.outf}/{args.dataset}/{timestamp}/images/real_samples.png', nrow=n_gen,
                 normalize=True)
-        fake = netG(fixed_noise, fixed_gidx)
+        with torch.no_grad():
+            netG.eval()
+            fake = netG(fixed_noise, fixed_gidx)
+            netG.train()
         vutils.save_image(fake.detach(),
                 f'{args.outf}/{args.dataset}/{timestamp}/images/fake_samples_epoch_{i_epoch}.png', nrow=n_gen,
                 normalize=True)
