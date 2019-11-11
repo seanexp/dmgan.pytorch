@@ -21,6 +21,10 @@ from models import (
         ChairsBNGenerator, ChairsShareGenerator
         )
 
+import re
+
+import pdb
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', choices=['mnist', 'chairs'], help='which data to use')
@@ -48,9 +52,22 @@ print(args)
 
 from datetime import datetime
 timestamp = datetime.now().strftime('%b%d_%H-%M-%S')
+start_epoch = 0
 
-os.makedirs(os.path.join(args.outf, args.dataset, timestamp, 'images'), exist_ok=True)
+if args.load_from != '':
+    netG_fname = 'netG_' + args.load_from + '.pth'
+    netD_fname = 'netD_' + args.load_from + '.pth'
+    netG_path = os.path.join(args.outf, args.dataset, 'models', netG_fname)
+    netD_path = os.path.join(args.outf, args.dataset, 'models', netD_fname)
+
+    m = re.match('(.*\d{2}_\d{2}-\d{2}-\d{2})_epoch_(\d+)', args.load_from)
+    timestamp = m.group(1)
+    start_epoch = int(m.group(2))
+
+os.makedirs(os.path.join(args.outf, args.dataset, timestamp), exist_ok=True)
 os.makedirs(os.path.join(args.outf, args.dataset, 'models'), exist_ok=True)
+
+# pdb.set_trace()
 
 if args.manualSeed is None:
     args.manualSeed = random.randint(1, 10000)
@@ -65,11 +82,6 @@ if torch.cuda.is_available() and not args.cuda:
 
 device = torch.device("cuda:0" if args.cuda else "cpu")
 
-if args.load_from != '':
-    netG_fname = 'netG_' + args.load_from + '.pth'
-    netD_fname = 'netD_' + args.load_from + '.pth'
-    netG_path = os.path.join(args.outf, args.dataset, 'models', netG_fname)
-    netD_path = os.path.join(args.outf, args.dataset, 'models', netD_fname)
 
 if args.dataset == 'mnist':
     dataset = dset.MNIST(
@@ -133,7 +145,7 @@ fixed_noise = torch.randn(n_gen, nz, device=device).repeat(1, data_per_gen).view
 fixed_gidx = torch.arange(n_gen).repeat(data_per_gen)
 
 log_dir = os.path.join(
-    'runs', f"{timestamp}_{args.dataset}_lambda={args.lambda_q}_bn={args.bn}_dis_step={args.dis_step}")
+    'runs', f"{timestamp}_{args.dataset}_batch_size={args.batch_size}_lambda={args.lambda_q}_bn={args.bn}_dis_step={args.dis_step}")
 
 writer = SummaryWriter(log_dir)
 
@@ -146,7 +158,7 @@ optimizerG = optim.Adam([
                         ], lr=args.lr, betas=(args.beta1, 0.999))
 
 i_step = 0
-for i_epoch in range(1, n_epoch+1):
+for i_epoch in range(start_epoch+1, n_epoch+1):
     for i, (real, _) in enumerate(dataloader, 0):
         ############################
         # (1) Update D network: maximize E_{x ~ p_x} [D(x)] - E_{z ~ p_z} [D(G(z))]
@@ -191,14 +203,14 @@ for i_epoch in range(1, n_epoch+1):
 
     if i_epoch % args.log_every == 0:
         vutils.save_image(real,
-                f'{args.outf}/{args.dataset}/{timestamp}/images/real_samples.png', nrow=n_gen,
+                f'{args.outf}/{args.dataset}/{timestamp}/real_samples.png', nrow=n_gen,
                 normalize=True)
         with torch.no_grad():
             netG.eval()
             fake = netG(fixed_noise, fixed_gidx)
             netG.train()
         vutils.save_image(fake.detach(),
-                f'{args.outf}/{args.dataset}/{timestamp}/images/fake_samples_epoch_{i_epoch}.png', nrow=n_gen,
+                f'{args.outf}/{args.dataset}/{timestamp}/fake_samples_epoch_{i_epoch}.png', nrow=n_gen,
                 normalize=True)
 
     if i_epoch % args.save_every == 0 or i_epoch == n_epoch:
