@@ -120,6 +120,39 @@ class ChairsGenerator(Generator):
         self.n_gen = n_gen
 
 
+class ChairsBNGenerator(Generator):
+    def __init__(self, nz, n_gen):
+        super(ChairsBNGenerator, self).__init__(nz, n_gen)
+
+        n_div = 4
+        self.gens = nn.ModuleList([
+                        nn.Sequential(
+                            nn.Linear(nz, 256 // n_div),
+                            nn.BatchNorm1d(256 // n_div),
+                            nn.LeakyReLU(0.2),
+                            nn.Linear(256 // n_div, 128 // n_div * 8 * 8),
+                            nn.BatchNorm1d(128 // n_div * 8 * 8),
+                            nn.LeakyReLU(0.2),
+                            Lambda(lambda x: x.view(-1, 128 // n_div, 8, 8)),           # B X 32 X 8 X 8
+                            nn.ConvTranspose2d(128 // n_div, 64 // n_div, 4, 2, 1),     # B X 16 X 16 X 16
+                            nn.BatchNorm2d(64 // n_div),
+                            nn.LeakyReLU(0.2),
+                            nn.ConvTranspose2d(64 // n_div, 32 // n_div, 4, 2, 1),      # B X 8 X 32 X 32
+                            nn.BatchNorm2d(32 // n_div),
+                            nn.LeakyReLU(0.2),
+                            nn.ConvTranspose2d(32 // n_div, 16 // n_div, 4, 2, 1),      # B X 4 X 64 X 64
+                            nn.BatchNorm2d(16 // n_div),
+                            nn.LeakyReLU(0.2),
+                            nn.ConvTranspose2d(16 // n_div, 1, 3, 1, 1),                # B X 1 X 64 X 64
+                            nn.Tanh(),
+                            )
+                        for i in range(n_gen)
+                    ])
+
+        self.nz = nz
+        self.n_gen = n_gen
+
+
 class ChairsDiscriminator(Discriminator):
     def __init__(self, n_gen):
         super(ChairsDiscriminator, self).__init__(n_gen)
