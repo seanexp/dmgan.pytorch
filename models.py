@@ -14,8 +14,12 @@ class Lambda(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self, nz, n_gen):
+    def __init__(self, nz, n_gen, n_div):
         super(Generator, self).__init__()
+
+        self.nz = nz
+        self.n_gen = n_gen
+        self.n_div = n_div
 
     def forward(self, z, g_idx):
         batch_size = z.size(0)
@@ -38,13 +42,13 @@ class Discriminator(nn.Module):
 
 
 class MNISTGenerator(Generator):
-    def __init__(self, nz, n_gen):
-        super(MNISTGenerator, self).__init__(nz, n_gen)
+    def __init__(self, *args, **kwargs):
+        super(MNISTGenerator, self).__init__(*args, **kwargs)
 
-        n_div = 4
+        n_div = self.n_div
         self.gens = nn.ModuleList([
                         nn.Sequential(
-                            nn.Linear(nz, 1024 // n_div),
+                            nn.Linear(self.nz, 1024 // n_div),
                             nn.LeakyReLU(0.2),
                             nn.Linear(1024 // n_div, 128 // n_div * 7 * 7),
                             nn.LeakyReLU(0.2),
@@ -56,11 +60,8 @@ class MNISTGenerator(Generator):
                             nn.ConvTranspose2d(32 // n_div, 1, 3, 1, 1),                # B X 1 X 28 X 28
                             nn.Tanh(),
                             )
-                        for i in range(n_gen)
+                        for i in range(self.n_gen)
                     ])
-
-        self.nz = nz
-        self.n_gen = n_gen
 
 
 class MNISTDiscriminator(Discriminator):
@@ -93,13 +94,13 @@ class MNISTDiscriminator(Discriminator):
 
 
 class ChairsGenerator(Generator):
-    def __init__(self, nz, n_gen):
-        super(ChairsGenerator, self).__init__(nz, n_gen)
+    def __init__(self, *args, **kwargs):
+        super(ChairsGenerator, self).__init__(*args, **kwargs)
 
-        n_div = 4
+        n_div = self.n_div
         self.gens = nn.ModuleList([
                         nn.Sequential(
-                            nn.Linear(nz, 256 // n_div),
+                            nn.Linear(self.nz, 256 // n_div),
                             nn.LeakyReLU(0.2),
                             nn.Linear(256 // n_div, 128 // n_div * 8 * 8),
                             nn.LeakyReLU(0.2),
@@ -113,21 +114,18 @@ class ChairsGenerator(Generator):
                             nn.ConvTranspose2d(16 // n_div, 1, 3, 1, 1),                # B X 1 X 64 X 64
                             nn.Tanh(),
                             )
-                        for i in range(n_gen)
+                        for i in range(self.n_gen)
                     ])
-
-        self.nz = nz
-        self.n_gen = n_gen
 
 
 class ChairsBNGenerator(Generator):
-    def __init__(self, nz, n_gen):
-        super(ChairsBNGenerator, self).__init__(nz, n_gen)
+    def __init__(self, *args, **kwargs):
+        super(ChairsBNGenerator, self).__init__(*args, **kwargs)
 
-        n_div = 4
+        n_div = self.n_div
         self.gens = nn.ModuleList([
                         nn.Sequential(
-                            nn.Linear(nz, 256 // n_div),
+                            nn.Linear(self.nz, 256 // n_div),
                             nn.BatchNorm1d(256 // n_div),
                             nn.LeakyReLU(0.2),
                             nn.Linear(256 // n_div, 128 // n_div * 8 * 8),
@@ -146,20 +144,16 @@ class ChairsBNGenerator(Generator):
                             nn.ConvTranspose2d(16 // n_div, 1, 3, 1, 1),                # B X 1 X 64 X 64
                             nn.Tanh(),
                             )
-                        for i in range(n_gen)
+                        for i in range(self.n_gen)
                     ])
-
-        self.nz = nz
-        self.n_gen = n_gen
 
 
 class ChairsShareGenerator(Generator):
-    def __init__(self, nz, n_gen):
-        super(ChairsShareGenerator, self).__init__(nz, n_gen)
+    def __init__(self, *args, **kwargs):
+        super(ChairsShareGenerator, self).__init__(*args, **kwargs)
 
-        n_div = 4
         self.common = nn.Sequential(
-                            nn.Linear(nz, 256),
+                            nn.Linear(self.nz, 256),
                             nn.BatchNorm1d(256),
                             nn.LeakyReLU(0.2),
                             nn.Linear(256, 128 * 8 * 8),
@@ -172,6 +166,7 @@ class ChairsShareGenerator(Generator):
                             nn.ConvTranspose2d(64, 32 // n_div, 4, 2, 1),      # B X 8 X 32 X 32
                 )
 
+        n_div = self.n_div
         self.gens = nn.ModuleList([
                         nn.Sequential(
                             nn.BatchNorm2d(32 // n_div),
@@ -182,11 +177,8 @@ class ChairsShareGenerator(Generator):
                             nn.ConvTranspose2d(16 // n_div, 1, 3, 1, 1),                # B X 1 X 64 X 64
                             nn.Tanh(),
                             )
-                        for i in range(n_gen)
+                        for i in range(self.n_gen)
                     ])
-
-        self.nz = nz
-        self.n_gen = n_gen
 
     def forward(self, z, g_idx):
         batch_size = z.size(0)

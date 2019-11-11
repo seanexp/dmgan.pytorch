@@ -36,6 +36,7 @@ parser.add_argument('--cuda', action='store_true', help='enables cuda')
 # parser.add_argument('--netG', default='', help="path to netG (to continue training)")
 # parser.add_argument('--netD', default='', help="path to netD (to continue training)")
 parser.add_argument('--load_from', default='', help='pth file name of netG and netD (to continue training)')
+parser.add_argument('--n_div', type=int, default=4, help='division on number of generator parameters')
 parser.add_argument('--bn', action='store_true', help='use batch norm on netG')
 parser.add_argument('--share', action='store_true', help='whether to share initial layer')
 parser.add_argument('--dis_step', type=int, default=5, help='number of dis step per one gen step')
@@ -95,7 +96,7 @@ if args.dataset == 'mnist':
     n_gen = 10
     n_epoch = 25 * args.dis_step
 
-    netG = MNISTGenerator(nz, n_gen).to(device)
+    netG = MNISTGenerator(nz, n_gen, args.n_div).to(device)
     netD = MNISTDiscriminator(n_gen).to(device)
 
 elif args.dataset == 'chairs':
@@ -121,11 +122,11 @@ elif args.dataset == 'chairs':
     assert not (args.bn and args.share)
 
     if args.bn:
-        netG = ChairsBNGenerator(nz, n_gen).to(device)
+        netG = ChairsBNGenerator(nz, n_gen, args.n_div).to(device)
     elif args.share:
-        netG = ChairsShareGenerator(nz, n_gen).to(device)
+        netG = ChairsShareGenerator(nz, n_gen, args.n_div).to(device)
     else:
-        netG = ChairsGenerator(nz, n_gen).to(device)
+        netG = ChairsGenerator(nz, n_gen, args.n_div).to(device)
     netD = ChairsDiscriminator(n_gen).to(device)
 
 else:
@@ -145,7 +146,9 @@ fixed_noise = torch.randn(n_gen, nz, device=device).repeat(1, data_per_gen).view
 fixed_gidx = torch.arange(n_gen).repeat(data_per_gen)
 
 log_dir = os.path.join(
-    'runs', f"{timestamp}_{args.dataset}_batch_size={args.batch_size}_lambda={args.lambda_q}_bn={args.bn}_dis_step={args.dis_step}")
+    'runs', f("{timestamp}_{args.dataset}_batch_size={args.batch_size}_",
+                "lambda={args.lambda_q}_n_div={args.n_div}_bn={args.bn}_dis_step={args.dis_step}")
+    )
 
 writer = SummaryWriter(log_dir)
 
