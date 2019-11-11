@@ -18,7 +18,7 @@ import numpy as np
 from models import (
         MNISTGenerator, MNISTDiscriminator,
         ChairsGenerator, ChairsDiscriminator,
-        ChairsBNGenerator,
+        ChairsBNGenerator, ChairsShareGenerator
         )
 
 
@@ -33,6 +33,7 @@ parser.add_argument('--cuda', action='store_true', help='enables cuda')
 # parser.add_argument('--netD', default='', help="path to netD (to continue training)")
 parser.add_argument('--load_from', default='', help='pth file name of netG and netD (to continue training)')
 parser.add_argument('--bn', action='store_true', help='use batch norm on netG')
+parser.add_argument('--share', action='store_true', help='whether to share initial layer')
 parser.add_argument('--dis_step', type=int, default=5, help='number of dis step per one gen step')
 parser.add_argument('--lambda', dest='lambda_q', type=float, default=1.,
                                 help='coefficient for variational mutual information')
@@ -105,8 +106,12 @@ elif args.dataset == 'chairs':
     n_gen = 20
     n_epoch = 1000 * args.dis_step
 
+    assert not (args.bn and args.share)
+
     if args.bn:
         netG = ChairsBNGenerator(nz, n_gen).to(device)
+    elif args.share:
+        netG = ChairsShareGenerator(nz, n_gen).to(device)
     else:
         netG = ChairsGenerator(nz, n_gen).to(device)
     netD = ChairsDiscriminator(n_gen).to(device)
