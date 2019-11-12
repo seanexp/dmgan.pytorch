@@ -211,7 +211,7 @@ for i_epoch in range(start_epoch+1, n_epoch+1):
             fake = netG(fixed_noise, fixed_gidx)
             netG.train()
         vutils.save_image(fake.detach(),
-                f'{args.outf}/{args.dataset}/{timestamp}/fake_samples_epoch_{i_epoch}.png', nrow=n_gen,
+                f'{args.outf}/{args.dataset}/{timestamp}/fake_samples_epoch_{i_epoch}.png', nrow=data_per_gen,
                 normalize=True)
 
     if i_epoch % args.save_every == 0 or i_epoch == n_epoch:
