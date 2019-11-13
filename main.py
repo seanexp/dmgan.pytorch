@@ -64,7 +64,10 @@ if args.load_from != '':
     timestamp = m.group(1)
     start_epoch = int(m.group(2))
 
-os.makedirs(os.path.join(args.outf, args.dataset, timestamp), exist_ok=True)
+dirname = (f"{timestamp}_{args.dataset}_batch_size={args.batch_size}_"
+           f"lambda={args.lambda_q}_n_div={args.n_div}_dis_step={args.dis_step}_last_three_noshare")
+
+os.makedirs(os.path.join(args.outf, args.dataset, dirname), exist_ok=True)
 os.makedirs(os.path.join(args.outf, args.dataset, 'models'), exist_ok=True)
 
 # pdb.set_trace()
@@ -144,8 +147,7 @@ fixed_noise = torch.randn(data_per_gen, nz, device=device).repeat(n_gen, 1).view
 fixed_gidx = torch.arange(n_gen).view(-1, 1).repeat(1, data_per_gen).view(-1)
 
 log_dir = os.path.join(
-    'runs', (f"{timestamp}_{args.dataset}_batch_size={args.batch_size}_"
-             f"lambda={args.lambda_q}_n_div={args.n_div}_dis_step={args.dis_step}")
+    'runs', dirname
     )
 
 writer = SummaryWriter(log_dir)
@@ -204,17 +206,17 @@ for i_epoch in range(start_epoch+1, n_epoch+1):
 
     if i_epoch % args.log_every == 0:
         vutils.save_image(real,
-                f'{args.outf}/{args.dataset}/{timestamp}/real_samples.png', nrow=n_gen,
+                f'{args.outf}/{args.dataset}/{dirname}/real_samples.png', nrow=n_gen,
                 normalize=True)
         with torch.no_grad():
             netG.eval()
             fake = netG(fixed_noise, fixed_gidx)
             netG.train()
         vutils.save_image(fake.detach(),
-                f'{args.outf}/{args.dataset}/{timestamp}/fake_samples_epoch_{i_epoch}.png', nrow=data_per_gen,
+                f'{args.outf}/{args.dataset}/{dirname}/fake_samples_epoch_{i_epoch}.png', nrow=data_per_gen,
                 normalize=True)
 
     if i_epoch % args.save_every == 0 or i_epoch == n_epoch:
         # do checkpointing
-        torch.save(netG.state_dict(), f'{args.outf}/{args.dataset}/models/netG_{timestamp}_epoch_{i_epoch}.pth')
-        torch.save(netD.state_dict(), f'{args.outf}/{args.dataset}/models/netD_{timestamp}_epoch_{i_epoch}.pth')
+        torch.save(netG.state_dict(), f'{args.outf}/{args.dataset}/models/netG_{dirname}_epoch_{i_epoch}.pth')
+        torch.save(netD.state_dict(), f'{args.outf}/{args.dataset}/models/netD_{dirname}_epoch_{i_epoch}.pth')

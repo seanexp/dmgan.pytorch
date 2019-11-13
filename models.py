@@ -74,13 +74,13 @@ class MNISTShareGenerator(Generator):
                             nn.Linear(1024, 128 * 7 * 7),
                             nn.LeakyReLU(0.2),
                             Lambda(lambda x: x.view(-1, 128, 7, 7)),  # B X 32 X 7 X 7
-                            nn.ConvTranspose2d(128, 64, 4, 2, 1),     # B X 16 X 14 X 14
-                            nn.LeakyReLU(0.2),
                     )
         n_div = self.n_div
         self.gens = nn.ModuleList([
                         nn.Sequential(
-                            nn.ConvTranspose2d(64, 32 // n_div, 4, 2, 1),      # B X 8 X 28 X 28
+                            nn.ConvTranspose2d(128, 64 // n_div, 4, 2, 1),     # B X 16 X 14 X 14
+                            nn.LeakyReLU(0.2),
+                            nn.ConvTranspose2d(64 // n_div, 32 // n_div, 4, 2, 1),      # B X 8 X 28 X 28
                             nn.LeakyReLU(0.2),
                             nn.ConvTranspose2d(32 // n_div, 1, 3, 1, 1),                # B X 1 X 28 X 28
                             nn.Tanh(),
